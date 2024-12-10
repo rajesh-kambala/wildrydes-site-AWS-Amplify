@@ -47,7 +47,6 @@ var WildRydes = window.WildRydes || {};
         }
     });
 
-
     /*
      * Cognito User Pool functions
      */
@@ -59,7 +58,7 @@ var WildRydes = window.WildRydes || {};
         };
         var attributeEmail = new AmazonCognitoIdentity.CognitoUserAttribute(dataEmail);
 
-        userPool.signUp(toUsername(email), password, [attributeEmail], null,
+        userPool.signUp(email, password, [attributeEmail], null,
             function signUpCallback(err, result) {
                 if (!err) {
                     onSuccess(result);
@@ -72,7 +71,7 @@ var WildRydes = window.WildRydes || {};
 
     function signin(email, password, onSuccess, onFailure) {
         var authenticationDetails = new AmazonCognitoIdentity.AuthenticationDetails({
-            Username: toUsername(email),
+            Username: email,
             Password: password
         });
 
@@ -95,13 +94,9 @@ var WildRydes = window.WildRydes || {};
 
     function createCognitoUser(email) {
         return new AmazonCognitoIdentity.CognitoUser({
-            Username: toUsername(email),
+            Username: email,
             Pool: userPool
         });
-    }
-
-    function toUsername(email) {
-        return email.replace('@', '-at-');
     }
 
     /*
@@ -124,7 +119,7 @@ var WildRydes = window.WildRydes || {};
                 window.location.href = 'ride.html';
             },
             function signinError(err) {
-                alert(err);
+                alert(err.message || JSON.stringify(err));
             }
         );
     }
@@ -143,7 +138,7 @@ var WildRydes = window.WildRydes || {};
             }
         };
         var onFailure = function registerFailure(err) {
-            alert(err);
+            alert(err.message || JSON.stringify(err));
         };
         event.preventDefault();
 
@@ -166,7 +161,7 @@ var WildRydes = window.WildRydes || {};
                 window.location.href = signinUrl;
             },
             function verifyError(err) {
-                alert(err);
+                alert(err.message || JSON.stringify(err));
             }
         );
     }
