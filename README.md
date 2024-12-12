@@ -17,35 +17,45 @@ The application code is here in this repository.
 Here is the code for the Lambda function, originally taken from the [AWS workshop](https://aws.amazon.com/getting-started/hands-on/build-serverless-web-app-lambda-apigateway-s3-dynamodb-cognito/module-3/ ), and updated for Node 20.x:
 
 ```node
-import { randomBytes } from 'crypto';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand } from '@aws-sdk/lib-dynamodb';
+import { randomBytes } from 'crypto';
 
+// Initialize DynamoDB client
 const client = new DynamoDBClient({});
 const ddb = DynamoDBDocumentClient.from(client);
 
+// Unicorn fleet details
 const fleet = [
     { Name: 'Angel', Color: 'White', Gender: 'Female' },
     { Name: 'Gil', Color: 'White', Gender: 'Male' },
     { Name: 'Rocinante', Color: 'Yellow', Gender: 'Female' },
 ];
 
+// Lambda function handler
 export const handler = async (event, context) => {
-    if (!event.requestContext.authorizer) {
-        return errorResponse('Authorization not configured', context.awsRequestId);
-    }
-
-    const rideId = toUrlString(randomBytes(16));
-    console.log('Received event (', rideId, '): ', event);
-
-    const username = event.requestContext.authorizer.claims['cognito:username'];
-    const requestBody = JSON.parse(event.body);
-    const pickupLocation = requestBody.PickupLocation;
-
-    const unicorn = findUnicorn(pickupLocation);
-
     try {
+        // Validate authorization context
+        if (!event.requestContext || !event.requestContext.authorizer) {
+            return errorResponse('Authorization not configured', context.awsRequestId);
+        }
+
+        // Generate a unique Ride ID
+        const rideId = toUrlString(randomBytes(16));
+        console.log('Received event (', rideId, '): ', JSON.stringify(event));
+
+        // Extract username and request body
+        const username = event.requestContext.authorizer.claims['cognito:username'];
+        const requestBody = JSON.parse(event.body);
+        const pickupLocation = requestBody.PickupLocation;
+
+        // Find a unicorn for the ride
+        const unicorn = findUnicorn(pickupLocation);
+
+        // Record the ride in DynamoDB
         await recordRide(rideId, username, unicorn);
+
+        // Return success response
         return {
             statusCode: 201,
             body: JSON.stringify({
@@ -59,19 +69,21 @@ export const handler = async (event, context) => {
             },
         };
     } catch (err) {
-        console.error(err);
+        console.error('Error processing the request:', err);
         return errorResponse(err.message, context.awsRequestId);
     }
 };
 
+// Helper function to find a random unicorn
 function findUnicorn(pickupLocation) {
-    console.log('Finding unicorn for ', pickupLocation.Latitude, ', ', pickupLocation.Longitude);
+    console.log('Finding unicorn for pickup location:', pickupLocation);
     return fleet[Math.floor(Math.random() * fleet.length)];
 }
 
+// Helper function to record the ride in DynamoDB
 async function recordRide(rideId, username, unicorn) {
     const params = {
-        TableName: 'Rides',
+        TableName: 'Rides', // Ensure this matches your DynamoDB table name
         Item: {
             RideId: rideId,
             User: username,
@@ -79,9 +91,19 @@ async function recordRide(rideId, username, unicorn) {
             RequestTime: new Date().toISOString(),
         },
     };
-    await ddb.send(new PutCommand(params));
+
+    console.log('Recording ride:', params);
+
+    try {
+        await ddb.send(new PutCommand(params));
+        console.log('Ride successfully recorded in DynamoDB');
+    } catch (error) {
+        console.error('Error recording ride in DynamoDB:', error);
+        throw new Error('Could not record ride');
+    }
 }
 
+// Helper function to generate a URL-safe Base64 string
 function toUrlString(buffer) {
     return buffer.toString('base64')
         .replace(/\+/g, '-')
@@ -89,6 +111,7 @@ function toUrlString(buffer) {
         .replace(/=/g, '');
 }
 
+// Helper function to return an error response
 function errorResponse(errorMessage, awsRequestId) {
     return {
         statusCode: 500,
@@ -101,6 +124,7 @@ function errorResponse(errorMessage, awsRequestId) {
         },
     };
 }
+
 ```
 
 ## The Lambda Function Test Function
